@@ -1,0 +1,10 @@
+# Ignore the heavy dataset folder
+New Plant Diseases Dataset(Augmented)
+
+# Ignore Python environment cache
+venv/
+__pycache__/
+*.pyc
+
+# Ignore environment variables
+.env
