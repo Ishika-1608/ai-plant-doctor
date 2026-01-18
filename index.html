@@ -127,7 +127,7 @@
         .disease-title { font-weight: 700; font-size: 1.1rem; margin-bottom: 5px; }
         .confidence-score { font-size: 0.9rem; opacity: 0.8; margin-bottom: 10px; display: block; }
         
-        /* NEW: Advice Box Styling */
+        /* Advice Box Styling */
         .advice-box {
             margin-top: 12px;
             padding-top: 12px;
@@ -246,8 +246,8 @@
         formData.append('file', selectedFile);
 
         try {
-            // Call Python API
-            const response = await fetch('http://127.0.0.1:8000/predict', {
+            // IMPORTANT: Using Relative Path '/predict' for Deployment
+            const response = await fetch('/predict', {
                 method: 'POST',
                 body: formData
             });
@@ -267,7 +267,7 @@
         }
     });
 
-    // UPDATED: Function to display results including Advice
+    // Function to display results including Advice
     function displayResult(data) {
         const isHealthy = data.class.toLowerCase().includes('healthy');
         
