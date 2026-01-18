@@ -1,22 +1,19 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse # <--- ENSURE HTMLResponse IS HERE
 import tensorflow as tf
 import numpy as np
 from PIL import Image
 import io
 import json
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
 
 # --- APP INITIALIZATION ---
 app = FastAPI()
 
 # --- CONFIGURATION FOR CORS ---
-# This allows your Frontend (even on a different port or domain) to talk to this Backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, replace * with your actual frontend domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -33,60 +30,46 @@ print("Model loaded. Server ready.")
 
 # --- TREATMENT DATABASE ---
 treatments = {
-    # --- APPLE ---
     "Apple___Apple_scab": "Apply fungicides containing Captan or Mancozeb. Remove fallen leaves to prevent reinfection next season.",
     "Apple___Black_rot": "Prune out all infected wood and cankers. Apply fungicides (e.g., Myclobutanil) during bloom and petal fall.",
     "Apple___Cedar_apple_rust": "Remove nearby Red Cedar trees if possible. Apply protective fungicides (e.g., sulfur) before the buds open.",
     "Apple___healthy": "Great job! No treatment needed. Continue regular watering and monitoring.",
     
-    # --- BLUEBERRY ---
     "Blueberry___healthy": "Your blueberry plant is healthy! Ensure soil pH stays acidic (4.5-5.5).",
     
-    # --- CHERRY ---
     "Cherry___Powdery_mildew": "Apply fungicides like Trifloxystrobin or sulfur. Improve air circulation around the tree by pruning.",
     "Cherry___healthy": "Healthy cherry tree. Watch out for aphids during spring growth.",
     
-    # --- CORN ---
     "Corn___Common_rust": "Plant resistant varieties. Apply foliar fungicides like Azoxystrobin if infection is severe.",
     "Corn___Northern_Leaf_Blight": "Rotate crops to break the disease cycle. Use hybrid varieties with high resistance.",
     "Corn___healthy": "Corn is healthy. Ensure adequate nitrogen levels for strong stalks.",
     
-    # --- GRAPE ---
     "Grape___Black_rot": "Apply fungicides (Mancozeb, Myclobutanil) starting early in the season. Remove mummified berries.",
     "Grape___Esca_(Black_Measles)": "There is no chemical cure. Prune out infected wood in summer and avoid over-pruning in winter.",
     "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)": "Apply fungicides like Copper or Mancozeb. Manage leaf wetness by improving drainage.",
     "Grape___healthy": "Healthy vineyard. Monitor canopy management to prevent humidity buildup.",
     
-    # --- ORANGE ---
     "Orange___Haunglongbing_(Citrus_greening)": "CRITICAL. There is no cure. Remove infected trees to prevent spread to healthy trees. Control the Asian Citrus Psyllid insect.",
     
-    # --- PEACH ---
     "Peach___Bacterial_spot": "Use copper-based bactericides during dormant season. Plant resistant varieties.",
     "Peach___healthy": "Peach is healthy. Thin fruits to ensure remaining peaches grow large and healthy.",
     
-    # --- PEPPER ---
     "Pepper,_bell___Bacterial_spot": "Use certified disease-free seeds. Apply copper sprays regularly. Avoid working in fields when wet.",
     "Pepper,_bell___healthy": "Healthy pepper plant. Ensure consistent watering to prevent blossom end rot.",
     
-    # --- POTATO ---
     "Potato___Early_blight": "Remove infected lower leaves. Apply fungicides like Chlorothalonil every 7-10 days.",
     "Potato___Late_blight": "DANGEROUS. Destroy infected plants immediately. Apply metalaxyl or copper fungicides to prevent spread.",
     "Potato___healthy": "Healthy potatoes. Hill up soil around stems to prevent sun exposure.",
     
-    # --- RASPBERRY ---
     "Raspberry___healthy": "Healthy raspberry. Prune out old canes to encourage new growth.",
     
-    # --- SOYBEAN ---
     "Soybean___healthy": "Healthy soybean crop. Monitor for aphids and spider mites.",
     
-    # --- SQUASH ---
     "Squash___Powdery_mildew": "Apply neem oil or sulfur-based fungicides. Plant resistant varieties in the future.",
     
-    # --- STRAWBERRY ---
     "Strawberry___Leaf_scorch": "Remove infected leaves. Apply captan or myclobutanil fungicides at first signs.",
     "Strawberry___healthy": "Healthy strawberries. Mulch under plants to keep fruit off the soil.",
     
-    # --- TOMATO ---
     "Tomato___Bacterial_spot": "Use copper sprays. Remove plant debris from the garden. Rotate crops next year.",
     "Tomato___Early_blight": "Remove lower infected leaves. Apply fungicides (Chlorothalonil or Copper) regularly.",
     "Tomato___Late_blight": "Severe infection. Remove and destroy plants. Apply fungicides (Mancozeb) if caught early.",
@@ -102,32 +85,25 @@ treatments = {
 # --- HELPER FUNCTION ---
 def predict_disease(image_bytes):
     try:
-        # 1. Convert bytes to image
         img = Image.open(io.BytesIO(image_bytes))
-        
-        # 2. Resize and convert to RGB
-        img = img.convert('RGB') # Ensure 3 channels
+        img = img.convert('RGB')
         img = img.resize((128, 128))
         
-        # 3. PREPARING ARRAY (FIXED)
-        # We use float32 (0-255) because the model handles preprocessing internally.
-        # We do NOT use preprocess_input here.
+        # Prepare Array
         img_array = np.array(img, dtype=np.float32)
         img_array = np.expand_dims(img_array, axis=0)
         
-        # 4. Predict
+        # Predict
         predictions = model.predict(img_array)
         
-        # 5. CALCULATING SCORE (FIXED)
-        # Model already has Softmax, so we take predictions directly.
+        # Score
         score = predictions[0]
         
-        # Get highest probability
         max_index = np.argmax(score)
         predicted_class = class_names[max_index]
         confidence = float(100 * np.max(score))
         
-        # Get advice from dictionary
+        # Get advice
         advice = treatments.get(predicted_class, "Consult a local agricultural expert for specific treatment.")
         
         return {"class": predicted_class, "confidence": confidence, "advice": advice}
@@ -137,25 +113,14 @@ def predict_disease(image_bytes):
 
 # --- ENDPOINTS ---
 
-@app.get("/")
-def home():
-    return {"message": "AI Plant Doctor API is running"}
-
-@app.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    # Read file content
-    image_bytes = await file.read()
-    
-    # Run prediction
-    result = predict_disease(image_bytes)
-    
-    return JSONResponse(content=result)
-
+# THIS PART IS NEW AND CRUCIAL
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
-    # This reads your HTML file and sends it to the browser
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
 
-# --- COMMAND TO RUN SERVER ---
-# uvicorn api:app --reload
+@app.post("/predict")
+async def predict(file: UploadFile = File(...)):
+    image_bytes = await file.read()
+    result = predict_disease(image_bytes)
+    return JSONResponse(content=result)
